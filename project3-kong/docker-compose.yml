@@ -29,6 +29,6 @@ services:
   weather-service:
     build: ./backend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       PORT: 3000
