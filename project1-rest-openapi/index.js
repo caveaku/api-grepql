@@ -3,7 +3,7 @@ const swaggerUi = require("swagger-ui-express");
 const YAML = require("yamljs");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
-const { OpenApiValidator } = require("express-openapi-validator");
+const OpenApiValidator = require("express-openapi-validator");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
