@@ -40,6 +40,98 @@ The Swagger UI at `/docs` is auto-generated from the same YAML file. There is no
 | `/books/:id/borrow` as a PATCH sub-resource | Models a state change (borrow/return) as a resource action, keeping the core `/books/:id` endpoint clean |
 | Centralized error handler | All validation errors bubble up to one place and return a consistent `{ success, error, details }` shape |
 
+### How to Run
+
+**Prerequisites:** Node.js 20+
+
+**Step 1 — Install dependencies**
+
+```bash
+cd project1-rest-openapi
+npm install
+```
+
+**Step 2 — Start the server**
+
+```bash
+npm start
+```
+
+You should see:
+
+```
+📚 Book Library API running on port 3000
+   API:  http://localhost:3000/books
+   Docs: http://localhost:3000/docs
+```
+
+**Step 3 — Verify the server is up**
+
+```bash
+curl http://localhost:3000/health
+# → {"status":"ok","uptime":...,"timestamp":"..."}
+```
+
+**Step 4 — Open the interactive docs**
+
+Go to **http://localhost:3000/docs** in your browser. Swagger UI loads with every endpoint listed and executable from the browser.
+
+**Step 5 — Test the endpoints**
+
+```bash
+# List all books (4 pre-loaded)
+curl http://localhost:3000/books
+
+# Filter by genre
+curl "http://localhost:3000/books?genre=Programming"
+
+# Add a new book
+curl -X POST http://localhost:3000/books \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Clean Architecture","author":"Robert C. Martin","genre":"Programming","year":2017}'
+
+# Copy the "id" from the response above, then get that book
+curl http://localhost:3000/books/<id>
+
+# Borrow the book
+curl -X PATCH http://localhost:3000/books/<id>/borrow \
+  -H "Content-Type: application/json" \
+  -d '{"action":"borrow"}'
+
+# Try to borrow it again — expect 400 (already borrowed)
+curl -X PATCH http://localhost:3000/books/<id>/borrow \
+  -H "Content-Type: application/json" \
+  -d '{"action":"borrow"}'
+
+# Return the book
+curl -X PATCH http://localhost:3000/books/<id>/borrow \
+  -H "Content-Type: application/json" \
+  -d '{"action":"return"}'
+
+# Trigger a validation error — missing required fields
+curl -X POST http://localhost:3000/books \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Incomplete Book"}'
+# → 422 Unprocessable Entity with detailed validation errors
+
+# Update a book
+curl -X PUT http://localhost:3000/books/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Clean Architecture","author":"Robert C. Martin","genre":"Software","year":2017}'
+
+# Delete a book
+curl -X DELETE http://localhost:3000/books/<id>
+```
+
+**Available scripts**
+
+| Command | What it does |
+|---|---|
+| `npm start` | Run with Node.js (production) |
+| `npm run dev` | Run with nodemon (auto-restarts on file changes) |
+
+---
+
 ### What to demo
 
 ```bash
@@ -86,6 +178,139 @@ This project demonstrates the practical difference: fetching a movie list for a 
 | `GraphQLError` with `extensions.code` | Structured errors (`INVALID_RATING_SCORE`, `MOVIE_NOT_FOUND`) let clients handle errors programmatically, not just read a string |
 | Input types for mutations | `AddMovieInput` and `AddRatingInput` make mutations self-documenting and prevent field injection |
 | `averageRating` and `totalRatings` as computed fields | Derived data calculated at query time rather than stored redundantly |
+
+### How to Run
+
+**Prerequisites:** Node.js 20+
+
+**Step 1 — Install dependencies**
+
+```bash
+cd project2-graphql
+npm install
+```
+
+**Step 2 — Start the server**
+
+```bash
+npm start
+```
+
+You should see:
+
+```
+🚀 Server ready at http://localhost:4000/
+```
+
+**Step 3 — Open Apollo Explorer**
+
+Go to **http://localhost:4000** in your browser. Apollo Explorer loads automatically with schema introspection — you can browse every type, query, and mutation without reading the code.
+
+**Step 4 — Run queries in the Explorer**
+
+Paste these one at a time into the Explorer editor and click Run:
+
+```graphql
+# Get all movies — minimal fields (mobile card view)
+query {
+  movies {
+    id
+    title
+    year
+    averageRating
+  }
+}
+
+# Filter by genre and include nested director data
+query {
+  movies(genre: "Sci-Fi") {
+    title
+    director { name nationality }
+    totalRatings
+    averageRating
+  }
+}
+
+# Top 3 rated movies
+query {
+  topMovies(limit: 3) {
+    title
+    averageRating
+    genre
+  }
+}
+
+# Get all directors
+query {
+  directors {
+    id
+    name
+    nationality
+    birthYear
+  }
+}
+```
+
+**Step 5 — Run mutations**
+
+```graphql
+# Add a rating (use id "m1" to "m6")
+mutation {
+  addRating(movieId: "m1", input: { userId: "user99", score: 5, comment: "Brilliant!" }) {
+    title
+    averageRating
+    totalRatings
+  }
+}
+
+# Add a new movie
+mutation {
+  addMovie(input: { title: "Oppenheimer", year: 2023, genre: "Drama", directorId: "d1" }) {
+    id
+    title
+    director { name }
+  }
+}
+
+# Delete a movie
+mutation {
+  deleteMovie(id: "m1") {
+    success
+    message
+  }
+}
+```
+
+**Step 6 — Trigger a validation error**
+
+```graphql
+# Score must be 1–5 — this returns a structured error with extensions.code
+mutation {
+  addRating(movieId: "m1", input: { userId: "u1", score: 10 }) {
+    title
+  }
+}
+```
+
+Expected response:
+
+```json
+{
+  "errors": [{
+    "message": "Score must be between 1 and 5",
+    "extensions": { "code": "INVALID_RATING_SCORE" }
+  }]
+}
+```
+
+**Available scripts**
+
+| Command | What it does |
+|---|---|
+| `npm start` | Run with Node.js |
+| `npm run dev` | Run with Node.js `--watch` (auto-restarts on file changes) |
+
+---
 
 ### What to demo
 
@@ -164,6 +389,113 @@ An API gateway centralizes those concerns at the network edge. The backend servi
 | `correlation-id` plugin (UUID, `X-Request-ID`) | Every request gets a unique trace ID echoed back to the client — enables end-to-end request tracing across services |
 | Two consumers (`demo-user`, `admin-user`) | Demonstrates per-consumer access control — different keys, same gateway, different quota policies possible |
 
+### How to Run
+
+**Prerequisites:** Docker Desktop (running)
+
+**Step 1 — Start all containers**
+
+```bash
+cd project3-kong
+docker compose up --build
+```
+
+This starts two containers: `kong` (the gateway) and `weather-service` (the backend). Wait until you see:
+
+```
+kong  | ... [info] Starting Kong
+```
+
+**Step 2 — Verify Kong is up**
+
+```bash
+curl http://localhost:8001/status
+# → {"database":{"reachability":"off"},...}
+```
+
+**Step 3 — Test authentication**
+
+```bash
+# No API key — Kong blocks the request
+curl http://localhost:8000/api/weather
+# → {"message":"No API key found in request"}  (401)
+
+# With a valid API key — request reaches the backend
+curl "http://localhost:8000/api/weather?city=london" \
+  -H "X-API-Key: my-secret-api-key-123"
+# → {"city":"London","temperature":...}
+
+# Admin API key also works
+curl "http://localhost:8000/api/weather?city=tokyo" \
+  -H "X-API-Key: admin-super-secret-key-456"
+```
+
+**Available cities:** `new-york` · `london` · `tokyo` · `sydney` · `dubai`
+
+**Step 4 — Test the forecast endpoint**
+
+```bash
+curl "http://localhost:8000/api/forecast?city=sydney" \
+  -H "X-API-Key: my-secret-api-key-123"
+```
+
+**Step 5 — Trigger rate limiting**
+
+```bash
+# Send 11 requests in quick succession
+# First 10 return 200, the 11th returns 429 Too Many Requests
+for i in {1..11}; do
+  curl -s -o /dev/null -w "Request $i: %{http_code}\n" \
+    "http://localhost:8000/api/weather?city=london" \
+    -H "X-API-Key: my-secret-api-key-123"
+done
+```
+
+Watch for the `X-RateLimit-Remaining-Minute` header dropping to 0 then the 429.
+
+**Step 6 — Inspect the gateway config via the admin API**
+
+```bash
+# List all registered services
+curl http://localhost:8001/services
+
+# List all routes
+curl http://localhost:8001/routes
+
+# List all active plugins (auth, rate-limit, correlation-id, etc.)
+curl http://localhost:8001/plugins
+
+# List all consumers
+curl http://localhost:8001/consumers
+```
+
+**Step 7 — Check the X-Request-ID tracing header**
+
+```bash
+curl -v "http://localhost:8000/api/weather?city=dubai" \
+  -H "X-API-Key: my-secret-api-key-123" 2>&1 | grep -i "x-request-id"
+# → X-Request-ID: <uuid>  — unique per request, echoed back in the response
+```
+
+**Step 8 — Stop the containers**
+
+```bash
+docker compose down
+```
+
+**Available scripts / Docker commands**
+
+| Command | What it does |
+|---|---|
+| `docker compose up --build` | Build and start all containers (foreground) |
+| `docker compose up -d --build` | Build and start in background (detached) |
+| `docker compose down` | Stop and remove containers |
+| `docker compose logs kong -f` | Tail Kong gateway logs |
+| `docker compose logs weather-service -f` | Tail backend service logs |
+| `docker compose ps` | Show container status |
+
+---
+
 ### What to demo
 
 ```bash
@@ -226,6 +558,161 @@ The CI pipeline enforces this. Every push to the repository must pass `tsc --noE
 | `buildApp()` factory pattern | The app is exported as a factory function, not a singleton — this is what makes `inject()`-based testing and `NODE_ENV=test` isolation possible |
 | GitHub Actions CI | Type-check → test → build pipeline runs on every push — failures block merging |
 | `.env.example` committed | Documents required environment variables without committing actual secrets |
+
+### How to Run
+
+**Prerequisites:** Node.js 20+
+
+**Step 1 — Install dependencies**
+
+```bash
+cd project4-fullstack
+npm install
+```
+
+**Step 2 — Set up the environment file**
+
+```bash
+cp .env.example .env
+```
+
+The `.env.example` contains all required variables with working defaults — no edits needed for local development:
+
+```
+DATABASE_URL="file:./dev.db"
+PORT=3000
+HOST=0.0.0.0
+NODE_ENV=development
+```
+
+**Step 3 — Run the database migration**
+
+```bash
+npx prisma migrate dev --name init
+```
+
+This creates `prisma/dev.db` (a SQLite file) and runs the schema migration. Prisma also generates the type-safe client automatically.
+
+You should see:
+
+```
+✔ Generated Prisma Client
+✔ Your database is now in sync with your schema.
+```
+
+**Step 4 — Start the development server**
+
+```bash
+npm run dev
+```
+
+You should see:
+
+```
+✅ Task Manager API
+   API:  http://localhost:3000/api/tasks
+   Docs: http://localhost:3000/docs
+```
+
+**Step 5 — Open the auto-generated API docs**
+
+Go to **http://localhost:3000/docs** — Swagger UI is auto-generated from the TypeScript route schemas.
+
+**Step 6 — Test the endpoints**
+
+```bash
+# Create tasks
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Design database schema","priority":"HIGH","description":"ERD and migration plan"}'
+
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Write unit tests","priority":"MEDIUM"}'
+
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Deploy to production","priority":"URGENT","description":"Final deployment step"}'
+
+# List all tasks
+curl http://localhost:3000/api/tasks
+
+# Filter by status
+curl "http://localhost:3000/api/tasks?status=TODO"
+
+# Filter by priority
+curl "http://localhost:3000/api/tasks?priority=URGENT"
+
+# Get a single task (copy an id from the list above)
+curl http://localhost:3000/api/tasks/<id>
+
+# Update a task — move it to IN_PROGRESS
+curl -X PATCH http://localhost:3000/api/tasks/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"status":"IN_PROGRESS"}'
+
+# Mark it DONE
+curl -X PATCH http://localhost:3000/api/tasks/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"status":"DONE"}'
+
+# Get aggregated stats (count by status and priority)
+curl http://localhost:3000/api/tasks/stats
+
+# Delete a task
+curl -X DELETE http://localhost:3000/api/tasks/<id>
+
+# Health check
+curl http://localhost:3000/health
+```
+
+**Status values:** `TODO` · `IN_PROGRESS` · `DONE` · `CANCELLED`  
+**Priority values:** `LOW` · `MEDIUM` · `HIGH` · `URGENT`
+
+**Step 7 — Run the test suite**
+
+```bash
+# Run all tests once
+npm test
+
+# Watch mode (re-runs on file changes)
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
+```
+
+**Step 8 — Run the type checker**
+
+```bash
+npm run lint
+# Runs tsc --noEmit — zero output means zero type errors
+```
+
+**Step 9 — Explore the database with Prisma Studio**
+
+```bash
+npx prisma studio
+# Opens http://localhost:5555 — a visual table editor for dev.db
+```
+
+**Available scripts**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start with `tsx watch` — hot reload on save |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm start` | Run the compiled build (`node dist/index.js`) |
+| `npm test` | Run Vitest integration tests once |
+| `npm run test:watch` | Run Vitest in watch mode |
+| `npm run test:coverage` | Run tests with V8 coverage report |
+| `npm run lint` | Type-check without emitting (`tsc --noEmit`) |
+| `npm run db:migrate` | Run pending Prisma migrations |
+| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:studio` | Open Prisma Studio (visual DB browser) |
+| `npm run db:reset` | Wipe and recreate the database |
+
+---
 
 ### What to demo
 
