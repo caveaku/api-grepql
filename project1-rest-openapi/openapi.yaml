@@ -1,0 +1,308 @@
+openapi: 3.0.0
+info:
+  title: Book Library API
+  description: A simple REST API for managing a book library
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@booklibrary.com
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Books
+    description: Operations for managing books
+
+paths:
+  /books:
+    get:
+      tags: [Books]
+      summary: Get all books
+      description: Returns a list of all books in the library
+      parameters:
+        - name: genre
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter books by genre
+        - name: author
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter books by author name
+      responses:
+        "200":
+          description: A list of books
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Book"
+              example:
+                success: true
+                count: 2
+                data:
+                  - id: "1a2b3c"
+                    title: "Clean Code"
+                    author: "Robert C. Martin"
+                    genre: "Programming"
+                    year: 2008
+                    available: true
+                  - id: "4d5e6f"
+                    title: "The Pragmatic Programmer"
+                    author: "David Thomas"
+                    genre: "Programming"
+                    year: 1999
+                    available: false
+
+    post:
+      tags: [Books]
+      summary: Add a new book
+      description: Adds a new book to the library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+            example:
+              title: "Clean Code"
+              author: "Robert C. Martin"
+              genre: "Programming"
+              year: 2008
+      responses:
+        "201":
+          description: Book created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /books/{id}:
+    get:
+      tags: [Books]
+      summary: Get a book by ID
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: Book found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Books]
+      summary: Update a book
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+      responses:
+        "200":
+          description: Book updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Books]
+      summary: Delete a book
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: Book deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /books/{id}/borrow:
+    patch:
+      tags: [Books]
+      summary: Borrow or return a book
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [borrow, return]
+      responses:
+        "200":
+          description: Action performed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /health:
+    get:
+      tags: [Books]
+      summary: Health check
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  uptime:
+                    type: number
+                  timestamp:
+                    type: string
+
+components:
+  schemas:
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique book identifier
+        title:
+          type: string
+          description: Book title
+        author:
+          type: string
+          description: Author full name
+        genre:
+          type: string
+          description: Book genre
+        year:
+          type: integer
+          description: Publication year
+          minimum: 1000
+          maximum: 2100
+        available:
+          type: boolean
+          description: Whether the book is available to borrow
+
+    BookInput:
+      type: object
+      required: [title, author, genre, year]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        author:
+          type: string
+          minLength: 1
+          maxLength: 100
+        genre:
+          type: string
+          minLength: 1
+          maxLength: 50
+        year:
+          type: integer
+          minimum: 1000
+          maximum: 2100
+
+  parameters:
+    BookId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: The book ID
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+          example:
+            success: false
+            error: "Book not found"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object

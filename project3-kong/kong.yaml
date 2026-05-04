@@ -1,0 +1,85 @@
+_format_version: "3.0"
+_transform: true
+
+# ── Services ──────────────────────────────────────────────────────────────────
+# A "service" in Kong is your upstream backend
+services:
+  - name: weather-service
+    url: http://weather-service:3000
+    connect_timeout: 5000
+    read_timeout: 10000
+
+    # ── Routes ──────────────────────────────────────────────────────────────────
+    # A "route" maps an incoming request path to a service
+    routes:
+      - name: weather-route
+        paths:
+          - /api/weather
+        strip_path: false
+        methods:
+          - GET
+
+      - name: forecast-route
+        paths:
+          - /api/forecast
+        strip_path: false
+        methods:
+          - GET
+
+      - name: health-route
+        paths:
+          - /api/health
+        strip_path: false
+        methods:
+          - GET
+
+    # ── Plugins applied at service level (affect all routes) ──────────────────
+    plugins:
+      # Rate limiting: max 10 requests per minute per consumer
+      - name: rate-limiting
+        config:
+          minute: 10
+          hour: 200
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+
+      # Request size limiting
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 1
+
+      # Correlation ID — adds a unique ID to every request for tracing
+      - name: correlation-id
+        config:
+          header_name: X-Request-ID
+          generator: uuid
+          echo_downstream: true
+
+# ── Consumers (API users) ─────────────────────────────────────────────────────
+consumers:
+  - username: demo-user
+    keyauth_credentials:
+      - key: my-secret-api-key-123
+
+  - username: admin-user
+    keyauth_credentials:
+      - key: admin-super-secret-key-456
+
+# ── Global plugins ─────────────────────────────────────────────────────────────
+plugins:
+  # API Key authentication (global — applies to all routes)
+  - name: key-auth
+    config:
+      key_names:
+        - X-API-Key
+        - apikey
+      hide_credentials: true  # strips the key before forwarding to backend
+
+  # Response headers — add API version info
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "X-API-Version: 1.0"
+          - "X-Powered-By: Kong Gateway"
